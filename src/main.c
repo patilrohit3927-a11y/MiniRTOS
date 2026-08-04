@@ -277,8 +277,8 @@ int main(void)
 
     Debug_Print("\r\n");
     Debug_Print("====================================\r\n");
-    Debug_Print("          MiniRTOS v1.0\r\n");
-    Debug_Print("     ARM Cortex-M4 RTOS Demo\r\n");
+    Debug_Print("             MiniRTOS \r\n");
+    Debug_Print("       ARM Cortex-M4 RTOS \r\n");
     Debug_Print("====================================\r\n");
 
 

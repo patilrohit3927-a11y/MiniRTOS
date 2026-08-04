@@ -1,4 +1,4 @@
-# MiniRTOS v1.0
+# MiniRTOS 
 
 ## ARM Cortex-M4 Based Real-Time Operating System
 
