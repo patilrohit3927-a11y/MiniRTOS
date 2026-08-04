@@ -252,7 +252,7 @@ SENSOR          READY
 
 Example execution:
 
-![output](output.png)
+![MiniRTOS Demo](image/output.png)
 
 ---
 
