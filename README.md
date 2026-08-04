@@ -260,7 +260,7 @@ Example execution:
 
 ## Task Monitor
 
-![MiniRTOS Task Monitor](image/task_monitor.png>)
+![MiniRTOS Task Monitor](<image/task_monitor.png>)
 
 ---
 
