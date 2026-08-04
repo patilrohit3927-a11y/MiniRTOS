@@ -1,0 +1,13 @@
+# Build files
+*.elf
+*.exe
+*.map
+*.o
+
+build/
+
+# IDE files
+.vscode/
+
+# Temporary files
+*.log
