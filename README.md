@@ -252,7 +252,15 @@ SENSOR          READY
 
 Example execution:
 
-![MiniRTOS Demo](image/output.png)
+## Boot Sequence
+
+![MiniRTOS Boot](<image/boot.png>)
+
+---
+
+## Task Monitor
+
+![MiniRTOS Task Monitor](image/task_monitor.png>)
 
 ---
 
