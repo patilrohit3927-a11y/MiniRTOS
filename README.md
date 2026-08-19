@@ -2,236 +2,615 @@
 
 ## ARM Cortex-M4 Based Real-Time Operating System
 
-MiniRTOS is a lightweight Real-Time Operating System developed from scratch to understand the internal working principles of embedded RTOS kernels.
+MiniRTOS is a lightweight Real-Time Operating System developed from scratch for the **ARM Cortex-M4 architecture**.
 
-The project implements a complete RTOS execution flow including task management, scheduling, context switching, synchronization mechanisms, inter-task communication and hardware-level simulation using ARM Cortex-M4.
+The purpose of this project is to understand the internal operation of an RTOS kernel by implementing the fundamental mechanisms normally provided by commercial RTOS platforms such as **FreeRTOS**.
 
-The goal of this project is to understand how commercial RTOS kernels such as FreeRTOS work internally by building the fundamental components from the ground up.
+Instead of using an existing RTOS kernel, MiniRTOS implements its own:
+
+* Task management
+* Task Control Blocks (TCBs)
+* Ready and blocked task lists
+* Time-sliced scheduling
+* SysTick-based system timing
+* PendSV-based context switching
+* ARM Cortex-M task stack initialization
+* Task delay and blocking
+* Semaphore synchronization
+* Mutex-based resource protection
+* Queue-based inter-task communication
+* UART-based debugging
+* RTOS task monitoring
+
+The complete system is executed and tested using **QEMU**, allowing the RTOS to run without requiring a physical development board.
 
 ---
 
-# Features Implemented
+# Project Overview
+
+MiniRTOS demonstrates the complete execution path of a small embedded RTOS:
+
+```text
+                Application Tasks
+                       |
+                       v
+              +-------------------+
+              |     MiniRTOS      |
+              |      Kernel       |
+              +-------------------+
+                       |
+        +--------------+--------------+
+        |              |              |
+        v              v              v
+    Scheduler      Task Manager      IPC
+        |              |              |
+        +--------------+--------------+
+                       |
+                       v
+                 SysTick / PendSV
+                       |
+                       v
+                ARM Cortex-M4
+                       |
+                       v
+                     QEMU
+```
+
+---
+
+# Key Features
 
 ## 1. Task Management
 
-Implemented complete task handling mechanism:
+MiniRTOS provides its own task management mechanism.
 
-* Task creation API
-* Task Control Block (TCB)
-* Individual task stack allocation
-* Task initialization
-* Task state management
+Each task is represented using a **Task Control Block (TCB)** containing information required by the kernel to manage and execute the task.
 
-Supported task states:
+The task management system handles:
 
-```
-READY
-RUNNING
-BLOCKED
-```
+* Task creation
+* Task function pointer
+* Task stack allocation
+* Task stack pointer
+* Task priority
+* Task state
+* Task delay information
+* Task blocking reason
+* Task time slice
+* Task name
+* Task list relationships
 
----
+### Task States
 
-# 2. Scheduler
+MiniRTOS supports three primary task states:
 
-MiniRTOS contains a cooperative/preemptive style scheduler based on SysTick timing.
-
-Features:
-
-* Round Robin scheduling
-* Ready list management
-* Blocked task management
-* Time slice based switching
-* Automatic task selection
-* Periodic scheduler tick
-
-Scheduler flow:
-
-```
-        SysTick Interrupt
-
-              |
-              v
-
-        Scheduler Tick
-
-              |
-              v
-
-       Select Next Task
-
-              |
-              v
-
-        PendSV Trigger
-
-              |
-              v
-
-      Context Switching
-```
-
----
-
-# 3. ARM Cortex-M Context Switching
-
-Implemented ARM Cortex-M4 context switching mechanism using PendSV exception.
-
-Features:
-
-* PSP based task switching
-* Exception stack frame handling
-* Register save and restore
-* Task stack initialization
-* Low level assembly context switch
-
-Context switch flow:
-
-```
-Running Task
-
-      |
-      |
-   SysTick
-
-      |
-      |
-   PendSV Exception
-
-      |
-      |
- Save Current Context
-
-      |
-      |
- Restore Next Task Context
-
-      |
-      |
- Resume New Task
-```
-
----
-
-# 4. Timing Management
-
-Implemented RTOS timing services:
-
-* SysTick timer driver
-* System tick generation
-* Task delay API
-* Task wake-up mechanism
-* Time based scheduling
-
----
-
-# 5. Inter Task Communication (IPC)
-
-## Semaphore
-
-Implemented binary semaphore mechanism.
-
-Features:
-
-* Semaphore Give
-* Semaphore Take
-* Task synchronization
-* Blocking and waking mechanism
-
-Example:
-
-```
-Sender Task
-
-     |
-     |
-Semaphore Give
-
+```text
++----------+
+|  READY   |
++----------+
      |
      v
++----------+
+| RUNNING  |
++----------+
+     |
+     v
++----------+
+| BLOCKED  |
++----------+
+```
 
-Receiver Task Wakes
+### READY
+
+The task is eligible to execute but is currently waiting for CPU time.
+
+### RUNNING
+
+The task currently owns the CPU.
+
+### BLOCKED
+
+The task cannot execute until its blocking condition is satisfied.
+
+Examples include:
+
+* Waiting for a delay to expire
+* Waiting for a semaphore
+* Waiting for a mutex
+* Waiting for queue data
+
+---
+
+# 2. Task Creation API
+
+MiniRTOS provides a simplified RTOS-style task creation API:
+
+```c
+xTaskCreate(
+    taskFunction,
+    taskName,
+    priority
+);
+```
+
+The API validates the task parameters, allocates a task control block and stack from the statically allocated task pool, initializes the task stack and adds the task to the scheduler's ready list.
+
+---
+
+# 3. Task Stack Initialization
+
+Each task receives its own stack.
+
+During task creation, MiniRTOS manually constructs the initial Cortex-M exception stack frame.
+
+The initial stack contains:
+
+```text
+xPSR
+PC
+LR
+R12
+R3
+R2
+R1
+R0
+
+R11
+R10
+R9
+R8
+R7
+R6
+R5
+R4
+```
+
+The program counter is initialized with the task function address.
+
+This allows the context-switching mechanism to restore the task context and begin execution of the task as if it had already been running.
+
+---
+
+# 4. Scheduler
+
+MiniRTOS implements a **time-sliced round-robin scheduler**.
+
+The scheduler maintains separate lists for:
+
+```text
+READY TASKS
+     |
+     v
++----+----+----+----+
+| T1 | T2 | T3 | T4 |
++----+----+----+----+
+
+BLOCKED TASKS
+     |
+     v
++----+----+----+
+| T5 | T6 | T7 |
++----+----+----+
+```
+
+The scheduler selects the next READY task and transfers execution to it.
+
+### Scheduling mechanism
+
+```text
+              SysTick
+                 |
+                 v
+          Scheduler_Tick()
+                 |
+                 v
+       Update task delays
+                 |
+                 v
+       Update time slice
+                 |
+                 v
+          Time slice ends
+                 |
+                 v
+          Trigger PendSV
+                 |
+                 v
+        Context Switching
+                 |
+                 v
+        Next READY Task
 ```
 
 ---
 
-## Mutex
+# 5. Ready List
 
-Implemented mutex for resource protection.
+The scheduler maintains a linked list of READY tasks.
 
-Features:
+When a task becomes ready:
 
-* Mutex Lock
-* Mutex Unlock
-* Critical section protection
-* Task waiting mechanism
+```text
+Blocked
+   |
+   | condition satisfied
+   v
+ReadyList_Add()
+   |
+   v
+READY
+```
+
+When a task becomes blocked:
+
+```text
+READY
+   |
+   | wait / delay / synchronization
+   v
+ReadyList_Remove()
+   |
+   v
+BlockedList_Add()
+```
+
+This separation allows the scheduler to consider only tasks that are currently eligible to execute.
+
+---
+
+# 6. Blocked List
+
+MiniRTOS maintains a separate blocked list.
+
+A blocked task contains information such as:
+
+* Blocking reason
+* Delay ticks
+* Blocking relationship
+
+The scheduler checks the blocked list during every system tick.
+
+For delay-blocked tasks:
+
+```text
+delayTicks > 0
+      |
+      v
+delayTicks--
+      |
+      v
+delayTicks == 0
+      |
+      v
+Remove from Blocked List
+      |
+      v
+Add to Ready List
+```
+
+Synchronization-blocked tasks are released by their respective IPC mechanisms.
+
+---
+
+# 7. Time Management
+
+MiniRTOS uses the **ARM Cortex-M SysTick timer** as the system timing source.
+
+SysTick provides periodic kernel ticks.
+
+The tick is used for:
+
+* Task delays
+* Task wake-up
+* Time-slice management
+* Periodic scheduling
+
+### Task Delay
+
+The RTOS provides:
+
+```c
+vTaskDelay(ticks);
+```
+
+When a task calls the delay API:
+
+```text
+Running Task
+     |
+     v
+vTaskDelay()
+     |
+     v
+Set delayTicks
+     |
+     v
+Remove from Ready List
+     |
+     v
+Add to Blocked List
+     |
+     v
+Scheduler selects another task
+```
+
+When the requested number of ticks expires, the task is moved back to the READY state.
+
+---
+
+# 8. ARM Cortex-M4 Context Switching
+
+One of the main objectives of this project was to understand how an RTOS performs context switching at the processor level.
+
+MiniRTOS uses the **PendSV exception** for task context switching.
+
+The context-switching mechanism is implemented using ARM Cortex-M assembly and C code.
+
+### Context Switch Flow
+
+```text
+Task A Running
+      |
+      v
+SysTick Interrupt
+      |
+      v
+Scheduler Tick
+      |
+      v
+Time Slice Expired
+      |
+      v
+PendSV Triggered
+      |
+      v
+Save Task A Context
+      |
+      v
+Select Task B
+      |
+      v
+Restore Task B Context
+      |
+      v
+Task B Running
+```
+
+---
+
+# 9. PSP-Based Task Execution
+
+MiniRTOS uses the ARM Cortex-M **Process Stack Pointer (PSP)** for task execution.
+
+The **Main Stack Pointer (MSP)** is used by the processor for exception/handler execution, while tasks execute using their PSP-based stack.
+
+This separation is important for RTOS-based systems because it allows the kernel exception handlers and application tasks to use different stack contexts.
+
+---
+
+# 10. PendSV
+
+PendSV is used as the RTOS context-switch exception.
+
+The scheduler does not perform the complete context switch directly inside the SysTick handler.
+
+Instead:
+
+```text
+SysTick
+   |
+   v
+Scheduler decides that switching is required
+   |
+   v
+PendSV is triggered
+   |
+   v
+Context is saved/restored
+```
+
+This separates the timing interrupt from the actual context-switching operation.
+
+---
+
+# 11. Semaphore
+
+MiniRTOS implements semaphore-based task synchronization.
+
+The semaphore mechanism provides:
+
+* Semaphore initialization
+* Semaphore Give
+* Semaphore Take
+* Task blocking
+* Task wake-up
 
 Example:
 
-```
-Task 1
-
-  Lock Resource
-
-       |
-       v
-
-  Critical Section
-
-       |
-       v
-
-  Unlock Resource
-
-
-Task 2 waits until resource becomes free
+```text
+             Semaphore
+                 |
+        +--------+--------+
+        |                 |
+        v                 v
+   Sender Task       Receiver Task
+        |                 |
+        | Give            |
+        +-------> Signal  |
+                          |
+                          v
+                    Receiver wakes
 ```
 
 ---
 
-## Queue
+# 12. Mutex
 
-Implemented message queue system.
+MiniRTOS implements mutex-based resource protection.
 
-Features:
+A mutex prevents multiple tasks from accessing a protected resource simultaneously.
 
-* Producer-consumer communication
-* Circular buffer implementation
-* Queue Send
-* Queue Receive
-* Data synchronization between tasks
+Operations include:
 
----
-
-# 6. Device Drivers
-
-## UART Driver
-
-Implemented UART based debugging output.
-
-Used for:
-
-* RTOS status monitoring
-* Task execution logs
-* Debug messages
-
----
-
-# 7. Task Monitor
-
-Implemented RTOS monitoring system.
-
-Displays:
-
-* Task name
-* Current state
-* Running task
-* Ready tasks
-* Blocked tasks
-
-Example:
-
+```text
+Mutex Lock
+Mutex Unlock
 ```
+
+---
+
+# 13. Queue
+
+MiniRTOS implements a message queue for inter-task communication.
+
+The queue uses a circular-buffer style structure with:
+
+* Buffer
+* Head index
+* Tail index
+* Element count
+* Queue size
+
+### Queue Communication
+
+```text
+        Producer Task
+              |
+              | Queue_Send()
+              v
+       +--------------+
+       |    QUEUE     |
+       |              |
+       |  0  1  2  3 |
+       +--------------+
+              |
+              | Queue_Receive()
+              v
+        Consumer Task
+```
+
+---
+
+# 14. UART Driver
+
+A lightweight UART driver is implemented for debugging and RTOS monitoring.
+
+The driver provides:
+
+```c
+UART_Init()
+UART_PutChar()
+UART_Print()
+```
+
+UART output is used to display:
+
+* System initialization
+* Task execution
+* Semaphore operations
+* Mutex operations
+* Queue operations
+* Task monitor information
+
+---
+
+# 15. RTOS Task Monitor
+
+MiniRTOS contains a task-monitoring system that displays the current RTOS state.
+
+The monitor displays:
+
+```text
+NAME            STATE
+------------------------------------
+APP             RUNNING
+MEMORY          READY
+SEM_RX          READY
+SEM_TX          READY
+MUTEX1          READY
+MUTEX2          READY
+QUEUE_TX        READY
+QUEUE_RX        READY
+LED             READY
+SENSOR          BLOCKED
+UART            BLOCKED
+```
+
+This provides a visible demonstration of the scheduler and task-state transitions.
+
+---
+
+# 16. Idle Task
+
+MiniRTOS includes an idle task that executes when there are no other eligible READY tasks.
+
+Conceptually:
+
+```text
+          Are application
+          tasks READY?
+               |
+          +----+----+
+          |         |
+         YES        NO
+          |         |
+          v         v
+     Run task    Idle Task
+```
+
+The idle task provides a default execution path for the scheduler when application tasks are unavailable.
+
+---
+
+# 17. System Output
+
+The RTOS produces a live execution trace through UART.
+
+```text
+====================================
+           MiniRTOS 
+     ARM Cortex-M4 RTOS 
+====================================
+
+System Initialization...
+[OK] UART Driver
+[OK] SysTick Timer
+[OK] Scheduler
+[OK] Memory Manager
+[OK] IPC Objects
+
+================================
+        MiniRTOS Boot
+================================
+
+====================================
+Tasks Created Successfully
+Starting Scheduler...
+====================================
+
+[UART] Task Running
+[SENSOR] Task Running
+[APP] Task Running
+[MEMORY] Task Running
+
+[SEM] Sender Giving Signal
+[MUTEX] Task1 Locked
+
+[QUEUE] Sent: 0
+[QUEUE] Received: 0
+
+[LED] Task Running
+[SEM] Receiver Received Signal
+
+[MUTEX] Task1 Released
+[MUTEX] Task2 Waiting
+```
+
+---
+
+# 18. Task Monitor Example
+
+```text
 ====================================
         MiniRTOS Task Monitor
 ====================================
@@ -239,182 +618,385 @@ Example:
 NAME            STATE
 ------------------------------------
 APP             RUNNING
-IDLE            READY
+MEMORY          READY
+SEM_RX          READY
+SEM_TX          READY
+MUTEX1          READY
+MUTEX2          READY
+QUEUE_TX        READY
+QUEUE_RX        READY
+LED             READY
+SENSOR          BLOCKED
 UART            BLOCKED
-QUEUE_RX        BLOCKED
-SENSOR          READY
 ------------------------------------
 ```
 
----
-
-# Demo Output
-
-Example execution:
-
-## Boot Sequence
-
-![MiniRTOS Boot](<image/boot.png>)
+The monitor output demonstrates that tasks dynamically move between READY, RUNNING and BLOCKED states during execution.
 
 ---
 
-## Task Monitor
+# 19. Project Architecture
 
-![MiniRTOS Task Monitor](<image/task_monitor.png>)
-
----
-
-# Project Structure
-
+```text
+                         MiniRTOS
+                            |
+              +-------------+-------------+
+              |                           |
+        Application                   RTOS Kernel
+          Tasks                           |
+              |            +--------------+--------------+
+              |            |              |              |
+              |       Task Manager    Scheduler         IPC
+              |            |              |              |
+              |            |              |        +-----+-----+
+              |            |              |        |     |     |
+              |            |              |      SEM  MUTEX QUEUE
+              |            |              |
+              |            |          SysTick
+              |            |              |
+              |            +--------------+
+              |                           |
+              +---------------------------+
+                                          |
+                                     PendSV
+                                          |
+                                          v
+                                  ARM Cortex-M4
+                                          |
+                                          v
+                                         QEMU
 ```
-MiniRTOS
 
+---
+
+# 20. Project Directory Structure
+
+```text
+MiniRTOS/
 │
-├── src
-│   ├── scheduler.c
-│   ├── task.c
-│   ├── systick.c
-│   ├── semaphore.c
+├── inc/
+│   ├── cortex_m.h
+│   ├── idle.h
+│   ├── list.h
+│   ├── monitor.h
+│   ├── mutex.h
+│   ├── queue.h
+│   ├── rtos.h
+│   ├── scheduler.h
+│   ├── semaphore.h
+│   ├── systick.h
+│   ├── task.h
+│   └── uart.h
+│
+├── src/
+│   ├── cortex_m.c
+│   ├── idle.c
+│   ├── list.c
+│   ├── main.c
+│   ├── monitor.c
 │   ├── mutex.c
+│   ├── pendsv.c
 │   ├── queue.c
-│   └── drivers
+│   ├── rtos.c
+│   ├── scheduler.c
+│   ├── semaphore.c
+│   ├── systick.c
+│   ├── task.c
+│   └── uart.c
 │
-├── inc
-│   └── Header files
-│
-├── startup
+├── startup/
 │   └── startup.c
 │
-├── linker
+├── linker/
 │   └── linker.ld
 │
+├── screenshots/
+│   ├── boot_output.png
+│   └── task_monitor.png
+│
+├── .gitignore
 └── README.md
 ```
 
+> The exact files in `inc/` and `src/` should match the final project directory. Do not create empty files just to match this diagram.
+
 ---
 
-# Hardware / Software Environment
+# 21. Development Environment
 
-## Target Architecture
+## Processor Architecture
 
-```
+```text
 ARM Cortex-M4
 ```
 
-## Simulation Platform
+## Instruction Set
 
-```
-QEMU lm3s6965evb
+```text
+Thumb / Thumb-2
 ```
 
 ## Compiler
 
-```
-ARM GNU Toolchain
+```text
 arm-none-eabi-gcc
 ```
 
 ## Debugger
 
+```text
+arm-none-eabi-gdb
 ```
-ARM GDB
+
+## Simulator
+
+```text
+QEMU
+```
+
+## QEMU Machine
+
+```text
+lm3s6965evb
+```
+
+## Host Platform
+
+```text
+Windows
+PowerShell
 ```
 
 ---
 
-# Build Instructions
+# 22. Building the Project
 
-Install ARM GNU Toolchain.
+The project is built using the ARM GNU Embedded Toolchain.
 
-Compile:
+From the MiniRTOS project directory:
 
-```bash
-arm-none-eabi-gcc \
--mcpu=cortex-m4 \
--mthumb \
--T linker/linker.ld \
+```powershell
+arm-none-eabi-gcc -g -mcpu=cortex-m4 -mthumb -ffreestanding -fno-builtin -nostdlib -Iinc `
+src/main.c `
+src/task.c `
+src/scheduler.c `
+src/rtos.c `
+src/systick.c `
+src/cortex_m.c `
+src/pendsv.c `
+src/mutex.c `
+src/semaphore.c `
+src/queue.c `
+src/uart.c `
+src/list.c `
+src/idle.c `
+src/monitor.c `
+startup/startup.c `
+src/pendsv.S `
+-T linker/linker.ld `
 -o MiniRTOS.elf
 ```
 
-Output:
+Successful compilation produces:
 
-```
+```text
 MiniRTOS.elf
 ```
 
 ---
 
-# Running Simulation
+# 23. Running MiniRTOS in QEMU
 
-Start QEMU:
+Start the RTOS using:
 
-```bash
-qemu-system-arm \
--M lm3s6965evb \
--cpu cortex-m4 \
--kernel MiniRTOS.elf \
--nographic \
--monitor none \
--serial stdio
+```powershell
+qemu-system-arm -M lm3s6965evb -cpu cortex-m4 -kernel MiniRTOS.elf -nographic -monitor none -serial stdio
+```
+
+The UART output will appear directly in the terminal.
+
+Example:
+
+```text
+MiniRTOS Boot
+
+[UART] Task Running
+[SENSOR] Task Running
+[APP] Task Running
+[MEMORY] Task Running
+
+[SEM] Sender Giving Signal
+[MUTEX] Task1 Locked
+[QUEUE] Sent: 0
+[QUEUE] Received: 0
 ```
 
 ---
 
-# Architecture Overview
+# 24. Debugging with GDB
 
+MiniRTOS can be debugged using ARM GDB together with QEMU's GDB server.
+
+Start QEMU in debug mode:
+
+```powershell
+qemu-system-arm -M lm3s6965evb -cpu cortex-m4 -kernel MiniRTOS.elf -S -s
 ```
-             Application Tasks
 
-                    |
-                    |
+Then start:
 
-              MiniRTOS Kernel
-
- ------------------------------------------------
-
- Scheduler | Task Manager | IPC | Timer | Memory
-
- ------------------------------------------------
-
-                    |
-
-             ARM Cortex-M4 Hardware
-
+```powershell
+arm-none-eabi-gdb MiniRTOS.elf
 ```
+
+Connect to QEMU:
+
+```gdb
+target remote localhost:1234
+```
+
+Breakpoints can then be placed inside RTOS components such as:
+
+```text
+Queue_Send()
+Queue_Receive()
+Scheduler_Tick()
+Scheduler_SelectNextTask()
+Task_Create()
+```
+
+This was used to verify task execution and IPC behavior during development.
 
 ---
 
-# Learning Outcomes
+# 25. Testing and Verification
 
-Through this project, I learned:
+The RTOS was tested by creating multiple independent tasks representing different application activities.
 
-* Internal working of RTOS kernels
-* Task scheduling algorithms
-* ARM Cortex-M exception handling
-* PendSV based context switching
-* Stack frame management
-* Synchronization mechanisms
+Example tasks include:
+
+```text
+UART
+SENSOR
+APP
+MEMORY
+LED
+SEM_TX
+SEM_RX
+MUTEX1
+MUTEX2
+QUEUE_TX
+QUEUE_RX
+```
+
+The UART output was used to verify:
+
+### Task Scheduling
+
+```text
+[UART] Task Running
+[SENSOR] Task Running
+[APP] Task Running
+[MEMORY] Task Running
+[LED] Task Running
+```
+
+### Semaphore Synchronization
+
+```text
+[SEM] Sender Giving Signal
+[SEM] Receiver Received Signal
+```
+
+### Mutex Synchronization
+
+```text
+[MUTEX] Task1 Locked
+[MUTEX] Task1 Released
+[MUTEX] Task2 Waiting
+[MUTEX] Task2 Acquired
+[MUTEX] Task2 Released
+```
+
+### Queue Communication
+
+```text
+[QUEUE] Sent: 0
+[QUEUE] Received: 0
+
+[QUEUE] Sent: 1
+[QUEUE] Received: 1
+```
+
+### Task Blocking
+
+```text
+NAME            STATE
+------------------------------------
+APP             RUNNING
+QUEUE_RX        BLOCKED
+MUTEX1          BLOCKED
+SENSOR          BLOCKED
+UART            BLOCKED
+```
+
+These tests demonstrate that the major RTOS components are functioning together.
+
+---
+
+# 26. Design Decisions
+
+### Static Task Allocation
+
+Tasks and their stacks are allocated from statically defined memory pools.
+
+This keeps the implementation simple and predictable for an embedded RTOS demonstration.
+
+### Linked Lists
+
+Ready and blocked tasks are maintained using linked-list structures.
+
+This allows tasks to be added and removed as their execution state changes.
+
+### SysTick + PendSV
+
+SysTick is responsible for periodic kernel timing, while PendSV is used to perform the actual context switch.
+
+This follows the common Cortex-M RTOS architecture.
+
+### QEMU Simulation
+
+QEMU was selected so the RTOS could be demonstrated without requiring a physical development board.
+
+---
+
+# 27. What This Project Demonstrates
+
+This project demonstrates practical understanding of:
+
+* Embedded C
+* ARM Cortex-M architecture
+* RTOS kernel concepts
+* Task management
+* Scheduling
+* Context switching
+* Exception handling
+* SysTick
+* PendSV
+* PSP/MSP concepts
+* Task stack initialization
+* Synchronization
 * Inter-task communication
-* Embedded debugging techniques
+* UART debugging
+* GDB debugging
+* QEMU-based embedded simulation
+* Low-level C and ARM assembly interaction
 
 ---
-
-# Future Improvements
-
-Possible future enhancements:
-
-* Priority based scheduling
-* Priority inheritance for mutex
-* Dynamic memory allocation
-* Software timers
-* Event groups
-* Power management
-* Hardware board porting
-
----
-
-# Author
 
 **Rohit Patil**
 
 Embedded Systems | ARM Cortex-M | RTOS Development
+
+---
+
