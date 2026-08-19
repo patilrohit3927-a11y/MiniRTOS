@@ -531,19 +531,19 @@ The idle task provides a default execution path for the scheduler when applicati
 
 # System Output
 
-# MINIRTOS boot
+# MiniRTOS boot
 
 ![MiniRTOS Boot](<image/boot.png>)
 
 ---
 
-# 18. Task Monitor 
+# Task Monitor 
 
 ![MiniRTOS Task Monitor](<image/task_monitor.png>)
 
 ---
 
-# 19. Project Architecture
+# Project Architecture
 
 ```text
                          MiniRTOS
@@ -603,7 +603,7 @@ MiniRTOS/
 └── README.md
 ```
 
-> The exact files in `inc/` and `src/` should match the final project directory. Do not create empty files just to match this diagram.
+
 
 ---
 
@@ -759,6 +759,18 @@ This project demonstrates practical understanding of:
 * GDB debugging
 * QEMU-based embedded simulation
 * Low-level C and ARM assembly interaction
+
+---
+
+# Future Improvements 
+ 
+* Priority based scheduling 
+* Priority inheritance for mutex 
+* Dynamic memory allocation 
+* Software timers 
+* Event groups 
+* Power management 
+* Hardware board porting 
 
 ---
 
