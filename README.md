@@ -675,6 +675,7 @@ src/queue.c `
 src/uart.c `
 src/list.c `
 src/idle.c `
+src/debug.c `
 src/monitor.c `
 startup/startup.c `
 src/pendsv.S `
