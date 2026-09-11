@@ -289,8 +289,8 @@ int main(void)
     Debug_Print("[OK] UART Driver\r\n");
     Debug_Print("[OK] SysTick Timer\r\n");
     Debug_Print("[OK] Scheduler\r\n");
-    Debug_Print("[OK] Memory Manager\r\n");
-    Debug_Print("[OK] IPC Objects\r\n");
+    Debug_Print("[OK] Kernel Memory\r\n");
+    Debug_Print("[OK] Task IPC Objects\r\n");
 
 
     Debug_Print("\r\n");

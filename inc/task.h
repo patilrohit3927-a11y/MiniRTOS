@@ -8,8 +8,9 @@
 #define TASK_STACK_SIZE    256
 
 
-
-/* Task States */
+/*-----------------------------------------------------------
+ * Task States
+ *----------------------------------------------------------*/
 
 typedef enum
 {
@@ -21,9 +22,9 @@ typedef enum
 } TaskState;
 
 
-
-
-/* Block Reason */
+/*-----------------------------------------------------------
+ * Block Reason
+ *----------------------------------------------------------*/
 
 typedef enum
 {
@@ -36,10 +37,9 @@ typedef enum
 } BlockReason;
 
 
-
-
-
-/* Task Control Block */
+/*-----------------------------------------------------------
+ * Task Control Block
+ *----------------------------------------------------------*/
 
 typedef struct TCB
 {
@@ -49,11 +49,9 @@ typedef struct TCB
     uint32_t *stackPointer;
 
 
-
     /* Bottom of allocated stack */
 
     uint32_t *stackBase;
-
 
 
     /* Stack size */
@@ -61,11 +59,9 @@ typedef struct TCB
     uint32_t stackSize;
 
 
-
     /* Entry function */
 
     void (*taskFunction)(void);
-
 
 
     /* Delay ticks */
@@ -73,17 +69,27 @@ typedef struct TCB
     uint32_t delayTicks;
 
 
-
     /* Time slice */
 
     uint32_t timeSlice;
 
 
-
-    /* Priority */
+    /* Task priority */
 
     uint8_t priority;
 
+
+    /*
+        Original priority.
+
+        Used by priority inheritance.
+
+        When a task temporarily inherits a higher
+        priority, originalPriority remembers its
+        normal priority.
+    */
+
+    uint8_t originalPriority;
 
 
     /* Current state */
@@ -91,33 +97,38 @@ typedef struct TCB
     TaskState state;
 
 
-
     /* Why task is blocked */
 
     BlockReason blockReason;
 
 
-    char name[16];
-    /* Ready / Blocked list */
-    struct TCB *next;          // Ready list link
+    /* Task name */
 
-    struct TCB *blockNext;     // Blocked list link
+    char name[16];
+
+
+    /* Ready list link */
+
+    struct TCB *next;
+
+
+    /* Blocked list link */
+
+    struct TCB *blockNext;
 
 } TCB;
 
 
-
-
-
-/* Current running task */
+/*-----------------------------------------------------------
+ * Current running task
+ *----------------------------------------------------------*/
 
 extern TCB *currentTask;
 
 
-
-
-
-/* APIs */
+/*-----------------------------------------------------------
+ * Task APIs
+ *----------------------------------------------------------*/
 
 void Task_Create
 (
@@ -130,13 +141,10 @@ void Task_Create
 );
 
 
-
 void Task_Delay(uint32_t ticks);
 
 
-
 void Task_Yield(void);
-
 
 
 #endif

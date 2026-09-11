@@ -3,7 +3,6 @@
 #include "cortex_m.h"
 
 
-
 void Task_Create
 (
     TCB *task,
@@ -20,41 +19,66 @@ void Task_Create
     Disable_Interrupts();
 
 
-
     task->taskFunction = taskFunction;
+
 
     task->priority = priority;
 
+
+    /*
+        Save normal priority.
+
+        This is used by priority inheritance.
+    */
+
+    task->originalPriority = priority;
+
+
     task->state = TASK_READY;
+
 
     task->blockReason = BLOCK_NONE;
 
+
     task->delayTicks = 0;
 
-task->timeSlice = 10;
 
-task->next = 0;
-
+    task->timeSlice = 10;
 
 
-int i = 0;
+    task->next = 0;
 
 
-while(name[i] && i < 15)
-{
-    task->name[i] = name[i];
-    i++;
-}
+    task->blockNext = 0;
 
 
-task->name[i] = '\0';
+    /*
+        Copy task name safely.
+
+        Maximum 15 characters.
+    */
+
+    int i = 0;
 
 
+    if(name != 0)
+    {
+        while(name[i] && i < 15)
+        {
+            task->name[i] = name[i];
 
-task->stackBase = stack;
+            i++;
+        }
+    }
+
+
+    task->name[i] = '\0';
+
+
+    task->stackBase = stack;
+
 
     task->stackSize = stackSize;
-
 
 
     /*
@@ -64,55 +88,78 @@ task->stackBase = stack;
     sp = stack + stackSize;
 
 
+    /*
+        Hardware stacked frame
+    */
 
-    /* Hardware stacked frame */
+    *(--sp) = 0x01000000;                  /* xPSR */
 
-    *(--sp) = 0x01000000;                  // xPSR
-    *(--sp) = ((uint32_t)taskFunction);    // PC
-    *(--sp) = 0x00000000;                  // LR
+    *(--sp) = ((uint32_t)taskFunction);    /* PC */
 
-
-    *(--sp) = 0x12121212;                  // R12
-    *(--sp) = 0x03030303;                  // R3
-    *(--sp) = 0x02020202;                  // R2
-    *(--sp) = 0x01010101;                  // R1
-    *(--sp) = 0x00000000;                  // R0
+    *(--sp) = 0x00000000;                  /* LR */
 
 
+    *(--sp) = 0x12121212;                  /* R12 */
 
-    /* Software frame */
+    *(--sp) = 0x03030303;                  /* R3 */
 
-    *(--sp) = 0x11111111; // R11
-    *(--sp) = 0x10101010; // R10
-    *(--sp) = 0x09090909; // R9
-    *(--sp) = 0x08080808; // R8
-    *(--sp) = 0x07070707; // R7
-    *(--sp) = 0x06060606; // R6
-    *(--sp) = 0x05050505; // R5
-    *(--sp) = 0x04040404; // R4
+    *(--sp) = 0x02020202;                  /* R2 */
 
+    *(--sp) = 0x01010101;                  /* R1 */
+
+    *(--sp) = 0x00000000;                  /* R0 */
+
+
+    /*
+        Software frame
+    */
+
+    *(--sp) = 0x11111111;                  /* R11 */
+
+    *(--sp) = 0x10101010;                  /* R10 */
+
+    *(--sp) = 0x09090909;                  /* R9 */
+
+    *(--sp) = 0x08080808;                  /* R8 */
+
+    *(--sp) = 0x07070707;                  /* R7 */
+
+    *(--sp) = 0x06060606;                  /* R6 */
+
+    *(--sp) = 0x05050505;                  /* R5 */
+
+    *(--sp) = 0x04040404;                  /* R4 */
 
 
     task->stackPointer = sp;
 
 
+    /*
+        Add task to READY list
+    */
 
     ReadyList_Add(task);
 
 
-
     Enable_Interrupts();
-
 }
 
 
-
-
-
+/*-----------------------------------------------------------
+ * Task Delay
+ *----------------------------------------------------------*/
 
 void vTaskDelay(uint32_t ticks)
 {
     Disable_Interrupts();
+
+
+    if(currentTask == 0)
+    {
+        Enable_Interrupts();
+
+        return;
+    }
 
 
     currentTask->delayTicks = ticks;
@@ -134,15 +181,17 @@ void vTaskDelay(uint32_t ticks)
 }
 
 
-
-
-
+/*-----------------------------------------------------------
+ * Task Yield
+ *----------------------------------------------------------*/
 
 void Task_Yield(void)
 {
     Disable_Interrupts();
 
+
     Trigger_PendSV();
+
 
     Enable_Interrupts();
 }

@@ -3,9 +3,16 @@
 #include "cortex_m.h"
 
 
+/*-----------------------------------------------------------
+ * Mutex Create
+ *----------------------------------------------------------*/
 
 void Mutex_Create(Mutex *mutex)
 {
+    if(mutex == 0)
+        return;
+
+
     mutex->locked = 0;
 
     mutex->owner = 0;
@@ -14,19 +21,26 @@ void Mutex_Create(Mutex *mutex)
 }
 
 
-
-
+/*-----------------------------------------------------------
+ * Mutex Take
+ *----------------------------------------------------------*/
 
 int Mutex_Take(Mutex *mutex)
 {
-
     Disable_Interrupts();
 
 
+    if(mutex == 0)
+    {
+        Enable_Interrupts();
 
-    /*
-        Mutex is free
-    */
+        return -1;
+    }
+
+
+    /*-------------------------------------------------------
+     * Mutex is free
+     *------------------------------------------------------*/
 
     if(mutex->locked == 0)
     {
@@ -43,17 +57,59 @@ int Mutex_Take(Mutex *mutex)
     }
 
 
+    /*-------------------------------------------------------
+     * Mutex already owned by current task
+     *
+     * Simple recursive protection:
+     * do not block the owner.
+     *------------------------------------------------------*/
+
+    if(mutex->owner == currentTask)
+    {
+        Enable_Interrupts();
+
+        return 0;
+    }
 
 
+    /*-------------------------------------------------------
+     * Mutex is owned by another task.
+     *
+     * Priority inheritance:
+     *
+     * If waiting task has higher priority than
+     * mutex owner, temporarily raise owner's priority.
+     *------------------------------------------------------*/
 
-    /*
-        Mutex already taken
-    */
-
-    if(mutex->owner != currentTask)
+    if(mutex->owner != 0)
     {
 
-        mutex->waitingTask = currentTask;
+        if(currentTask != 0)
+        {
+
+            if(currentTask->priority >
+               mutex->owner->priority)
+            {
+
+                mutex->owner->priority =
+                    currentTask->priority;
+
+            }
+        }
+    }
+
+
+    /*-------------------------------------------------------
+     * Add current task to blocked state
+     *------------------------------------------------------*/
+
+    mutex->waitingTask = currentTask;
+
+
+    if(currentTask != 0)
+    {
+
+        currentTask->blockReason = BLOCK_MUTEX;
 
 
         ReadyList_Remove(currentTask);
@@ -61,48 +117,109 @@ int Mutex_Take(Mutex *mutex)
 
         BlockedList_Add(currentTask);
 
-
-
-        Trigger_PendSV();
-
     }
 
 
+    Trigger_PendSV();
+
 
     Enable_Interrupts();
-
 
 
     return -1;
 }
 
 
+/*-----------------------------------------------------------
+ * Mutex Give
+ *----------------------------------------------------------*/
+
 int Mutex_Give(Mutex *mutex)
 {
     Disable_Interrupts();
 
+
+    if(mutex == 0)
+    {
+        Enable_Interrupts();
+
+        return -1;
+    }
+
+
+    /*
+        Only owner should release mutex.
+    */
+
+    if(mutex->owner != currentTask)
+    {
+        Enable_Interrupts();
+
+        return -1;
+    }
+
+
+    /*-------------------------------------------------------
+     * Save owner before releasing.
+     *------------------------------------------------------*/
+
+    TCB *owner = mutex->owner;
+
+
     mutex->locked = 0;
+
     mutex->owner = 0;
+
+
+    /*-------------------------------------------------------
+     * Restore original priority.
+     *------------------------------------------------------*/
+
+    owner->priority = owner->originalPriority;
+
+
+    /*-------------------------------------------------------
+     * Wake waiting task
+     *------------------------------------------------------*/
 
     if(mutex->waitingTask != 0)
     {
+
         TCB *task = mutex->waitingTask;
+
 
         mutex->waitingTask = 0;
 
-        /* Remove from blocked list first */
+
         BlockedList_Remove(task);
 
+
         task->blockReason = BLOCK_NONE;
-        task->state = TASK_READY;
+
 
         ReadyList_Add(task);
+
+
+        /*
+            If awakened task has higher priority
+            than current task, request immediate
+            context switch.
+        */
+
+        if(currentTask != 0)
+        {
+
+            if(task->priority > currentTask->priority)
+            {
+                Trigger_PendSV();
+            }
+
+        }
     }
+
 
     Enable_Interrupts();
 
+
     return 0;
 }
-
-
-
