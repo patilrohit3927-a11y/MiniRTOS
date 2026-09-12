@@ -357,28 +357,6 @@ IDLE       READY
 
 This makes scheduler and synchronization behavior easier to observe during testing.
 
-## Verification
-
-GDB was used to inspect the internal RTOS state during development.
-
-| Feature | Status |
-|---|---|
-| Task creation | Verified |
-| Task states | Verified |
-| Ready/blocked task handling | Verified |
-| Task delay processing | Verified |
-| SysTick processing | Verified |
-| Time-slice decrement | Verified |
-| Time-slice expiration | Verified |
-| Time-slice reset | Verified |
-| PendSV trigger path | Verified |
-| Semaphore behavior | Verified |
-| Mutex behavior | Verified |
-| Queue behavior | Verified |
-| QEMU execution | Verified |
-| GDB debugging | Verified |
-
-
 
 The verification status is intentionally separated from the list of implemented kernel mechanisms.
 
