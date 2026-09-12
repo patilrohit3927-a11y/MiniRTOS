@@ -478,12 +478,11 @@ qemu-system-arm -M lm3s6965evb -cpu cortex-m4 -kernel MiniRTOS.elf -nographic -m
 ```
 
 ![RTOS Boot Output](assets/boot.png)
-*MiniRTOS system initialization and boot sequence — driver/kernel checks, task creation, and scheduler startup, running in QEMU.*
+
 
 ![RTOS Task Monitor Output](assets/task_monitor.png)
-*Live task monitor — task priorities and states (RUNNING/READY/BLOCKED) alongside semaphore, mutex, and queue activity.*
 
-UART output is displayed directly in the terminal.
+
 
 ## Debugging with GDB
 
