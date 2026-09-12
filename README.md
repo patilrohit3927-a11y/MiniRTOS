@@ -435,6 +435,10 @@ MiniRTOS/
 ├── linker/
 │   └── linker.ld
 │
+├── assets/
+│   ├── boot-output.png
+│   └── task-monitor.png
+│
 └── README.md
 ```
 
@@ -472,6 +476,12 @@ Successful compilation produces `MiniRTOS.elf`.
 ```bash
 qemu-system-arm -M lm3s6965evb -cpu cortex-m4 -kernel MiniRTOS.elf -nographic -monitor none -serial stdio
 ```
+
+![RTOS Boot Output](assets/boot.png)
+*MiniRTOS system initialization and boot sequence — driver/kernel checks, task creation, and scheduler startup, running in QEMU.*
+
+![RTOS Task Monitor Output](assets/task_monitor.png)
+*Live task monitor — task priorities and states (RUNNING/READY/BLOCKED) alongside semaphore, mutex, and queue activity.*
 
 UART output is displayed directly in the terminal.
 
@@ -534,4 +544,3 @@ MiniRTOS is an educational RTOS project, not a production-ready operating system
 
 **Rohit Patil**
 Embedded Systems | ARM Cortex-M | RTOS Development
-
