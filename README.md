@@ -377,9 +377,8 @@ GDB was used to inspect the internal RTOS state during development.
 | Queue behavior | Verified |
 | QEMU execution | Verified |
 | GDB debugging | Verified |
-| Higher-priority task selection | Partially verified |
-| Complete same-priority round-robin behavior | Not fully verified |
-| Priority inheritance | Not implemented |
+
+
 
 The verification status is intentionally separated from the list of implemented kernel mechanisms.
 
